@@ -37,7 +37,7 @@ function App() {
         const usdt = new Contract(ESPACE_TESTNET_USDT, ERC20ABI, signer);
         const tx = await usdt.approve(TESTNET_FLOW_ADDRESS, parseEther('100'));
         await tx.wait();
-        console.log('Approve hash', tx.hash);
+        alert('Approve hash: ' + tx.hash);
     }
 
     const uploadFile = async () => {
@@ -71,7 +71,7 @@ function App() {
         const nhProvider = new NHProvider(nhRpc);
 
         await nhProvider.uploadFile(blob);
-        console.log('finished');
+        alert('Upload finished');
     }
 
   return (
