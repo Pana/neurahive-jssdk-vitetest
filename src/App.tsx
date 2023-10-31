@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { BrowserProvider } from 'ethers';
+import { BrowserProvider, Contract, parseEther } from 'ethers';
 import { 
     NHBlob, 
     getFlowContract, 
     TESTNET_FLOW_ADDRESS, 
     NHProvider,
 } from 'js-neurahive-sdk';
+import { ERC20ABI, ESPACE_TESTNET_USDT } from './ERC20Abi';
 
 function App() {
     const [file, setFile] = useState<File|null>(null);
@@ -26,6 +27,17 @@ function App() {
         });
         const account = accounts[0];
         setAccount(account);
+    }
+
+    const approve = async () => {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        const provider = new BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const usdt = new Contract(ESPACE_TESTNET_USDT, ERC20ABI, signer);
+        const tx = await usdt.approve(TESTNET_FLOW_ADDRESS, parseEther('100'));
+        await tx.wait();
+        console.log('Approve hash', tx.hash);
     }
 
     const uploadFile = async () => {
@@ -66,6 +78,9 @@ function App() {
     <>
         <div style={{marginBottom: '10px'}}>
             <button onClick={connectWallet}>Connect wallet</button> {account}
+        </div>
+        <div style={{marginBottom: '10px'}}>
+            <button onClick={approve}>Approve USDT</button>
         </div>
         <div>
             <input type='file' onChange={(e) => {
