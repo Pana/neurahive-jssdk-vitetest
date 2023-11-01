@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {BrowserProvider, Contract, formatEther, parseEther} from 'ethers';
-import {getFlowContract, NHBlob, NHProvider, TESTNET_FLOW_ADDRESS,} from 'js-neurahive-sdk';
+import {FileInfo, getFlowContract, NHBlob, NHProvider, TESTNET_FLOW_ADDRESS,} from 'js-neurahive-sdk';
 import {ERC20ABI, ESPACE_TESTNET_USDT} from './ERC20Abi';
+import {Loading} from "./components/Loading.tsx";
 
 function App() {
     const [file, setFile] = useState<File|null>(null);
@@ -10,6 +11,7 @@ function App() {
         loading: false, approveHash: '', submitHash:'', allowance: 0, balance: 0, error: '',
         info: '', rootHash: '',
     })
+    const [fileInfo, setFileInfo] = useState<FileInfo|null>(null)
     const provider = useMemo(()=>{
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
@@ -55,7 +57,15 @@ function App() {
             })
         })
     }, [provider])
-
+    const getFileInfo = useCallback((rootHash:string, checkError:boolean)=>{
+        setFileInfo(null)
+        nhProvider.getFileInfo(rootHash).then(res=>{
+            setFileInfo(res)
+            if (res?.finalized && checkError) {
+                setV(v=>{return {...v, error: `Uploaded already.`}})
+            }
+        })
+    }, [nhProvider])
     useEffect(() => {
         if (!file) {
             return
@@ -68,15 +78,9 @@ function App() {
                 return;
             }
             setV(v=>{return {...v, rootHash: tree.rootHash()!, info: '', error: ''}})
-            nhProvider.getFileInfo(tree.rootHash()!).then(res=>{
-                if (res?.finalized) {
-                    setV(v=>{return {...v, error: `Uploaded already.`}})
-                } else if (res?.uploadedSegNum) {
-                    setV(v=>{return {...v, info: `uploadedSegNum: ${res.uploadedSegNum}`}})
-                }
-            })
+            getFileInfo(tree.rootHash()!, true)
         })()
-    }, [nhProvider, file]);
+    }, [nhProvider, file, getFileInfo]);
 
     const uploadFile = useCallback(async () => {
         setV(v=>{return {...v, info: '', submitHash: '', error: ''}})
@@ -87,30 +91,37 @@ function App() {
             console.log('get tree error', err);
             return;
         }
+        if (!fileInfo) {
+            const [sub, err1] = await blob.createSubmission("0x")
+            if (err1 || sub === null) {
+                console.log('get submission error', err1);
+                return;
+            }
+            console.log('File submission', sub);
 
-        const [sub, err1] = await blob.createSubmission("0x")
-        if (err1 || sub === null) {
-            console.log('get submission error', err1);
-            return;
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+
+            const signer = await provider.getSigner();
+            const flow = getFlowContract(TESTNET_FLOW_ADDRESS, signer);
+
+            const tx = await flow.submit(sub).catch(e => {
+                setV(v => {
+                    return {...v, error: `submit: ${e.reason || e}`}
+                })
+            });
+            if (!tx) {
+                return
+            }
+            setV(v => {
+                return {...v, submitHash: tx.hash, loading: true}
+            });
+            await tx.wait();
+            console.log('Submit hash', tx.hash);
+        } else {
+            setV(v=>{return {...v, submitHash: ''}})
         }
-        console.log('File submission', sub);
-
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-
-        const signer = await provider.getSigner();
-        const flow = getFlowContract(TESTNET_FLOW_ADDRESS, signer);
-
-        const tx = await flow.submit(sub).catch(e=>{
-            setV(v=>{return {...v, error: `submit: ${e.reason || e}`}})
-        });
-        if (!tx) {
-            return
-        }
-        setV(v=>{return {...v, submitHash: tx.hash, loading: true}});
-        await tx.wait();
-        console.log('Submit hash', tx.hash);
-        setV(v=>{return {...v, submitHash: tx.hash, loading: false,  info: 'uploading...'}})
+        setV(v=>{return {...v, loading: false,  info: 'uploading...'}})
 
         const errUp = await nhProvider.uploadFile(blob);
         if (errUp) {
@@ -119,7 +130,8 @@ function App() {
         }
         // alert('Upload finished');
         setV(v=>{return {...v, info: 'uploaded'}})
-    }, [provider, file])
+        getFileInfo(tree.rootHash()!, false)
+    }, [provider, file, nhProvider, fileInfo, getFileInfo])
 
     useEffect(()=>{
         if (!account) {
@@ -137,6 +149,7 @@ function App() {
     }, [provider, account])
   return (
     <>
+        <div><a href={'/storage'}>Explorer</a></div>
         <div style={{marginBottom: '10px'}}>
             <button onClick={connectWallet}>Connect wallet</button> {account}
         </div>
@@ -160,9 +173,13 @@ function App() {
         </div>
         {v.rootHash && <div>Root hash: {v.rootHash}</div>}
         {v.submitHash && <div>Submit on layer1: {v.submitHash}</div>}
-        <div>{v.loading && 'loading'}</div>
+        <div>{v.loading && <Loading/>}</div>
+        {fileInfo && <div>uploadedSegNum: {fileInfo?.uploadedSegNum} finalized: {fileInfo.finalized.toString()}
+            <button style={{marginLeft: '8px'}} onClick={()=>getFileInfo(v.rootHash!, true)}>refresh</button>
+        </div>}
         <div>{v.info}</div>
         <div>{v.error}</div>
+
     </>
   )
 }
