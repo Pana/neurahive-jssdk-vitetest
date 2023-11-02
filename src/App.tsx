@@ -1,17 +1,20 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {BrowserProvider, Contract, formatEther, parseEther} from 'ethers';
-import {FileInfo, getFlowContract, NHBlob, NHProvider, TESTNET_FLOW_ADDRESS,} from 'js-neurahive-sdk';
+import {FileInfo, getFlowContract, NHBlob, NHMerkleTree, NHProvider, TESTNET_FLOW_ADDRESS,} from 'js-neurahive-sdk';
 import {ERC20ABI, ESPACE_TESTNET_USDT} from './ERC20Abi';
 import {Loading} from "./components/Loading.tsx";
+import {Segments} from "./Segments.tsx";
 
 function App() {
     const [file, setFile] = useState<File|null>(null);
     const [account, setAccount] = useState<string|null>(null);
+    const [tree, setTree] = useState<NHMerkleTree|null>(null);
+    const [blob, setBlob] = useState<NHBlob|null>(null);
     const [v, setV] = useState({
         loading: false, approveHash: '', submitHash:'', allowance: 0, balance: 0, error: '',
         info: '', rootHash: '',
     })
-    const [fileInfo, setFileInfo] = useState<FileInfo|null>(null)
+    const [fileInfo, setFileInfo] = useState<Partial<FileInfo>|null>({})
     const provider = useMemo(()=>{
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
@@ -71,67 +74,75 @@ function App() {
             return
         }
         (async ()=>{
+            setTree(null)
             const blob = new NHBlob(file);
             const [tree, err] = await blob.merkleTree();
             if (tree === null || err) {
                 console.log('get tree error', err);
                 return;
             }
+            setTree(tree)
+            setBlob(blob)
             setV(v=>{return {...v, rootHash: tree.rootHash()!, info: '', error: ''}})
             getFileInfo(tree.rootHash()!, true)
         })()
     }, [nhProvider, file, getFileInfo]);
 
+    const submitToLayer1 = useCallback(async ()=>{
+        if (!blob) {
+            return
+        }
+        setFileInfo(null)
+        setV(v=>{return {...v, submitHash: ''}});
+        const [sub, err1] = await blob.createSubmission("0x")
+        if (err1 || sub === null) {
+            console.log('get submission error', err1);
+            return;
+        }
+        console.log('File submission', sub);
+
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+
+        const signer = await provider.getSigner();
+        const flow = getFlowContract(TESTNET_FLOW_ADDRESS, signer);
+
+        const tx = await flow.submit(sub).catch(e => {
+            setV(v => {
+                return {...v, error: `submit: ${e.reason || e}`}
+            })
+        });
+        if (!tx) {
+            return
+        }
+        setV(v => {
+            return {...v, submitHash: tx.hash, loading: true}
+        });
+        await tx.wait();
+        setV(v=>{return {...v, loading: false}})
+    }, [blob, provider])
+
     const uploadFile = useCallback(async () => {
-        setV(v=>{return {...v, info: '', submitHash: '', error: ''}})
-        if (!file) return;
-        const blob = new NHBlob(file);
+        if (!blob) {
+            return
+        }
+        setV(v=>{return {...v, info: '', submitHash: '', error: ''}});
         const [tree, err] = await blob.merkleTree();
         if (tree === null || err) {
             console.log('get tree error', err);
             return;
         }
-        if (!fileInfo) {
-            const [sub, err1] = await blob.createSubmission("0x")
-            if (err1 || sub === null) {
-                console.log('get submission error', err1);
-                return;
-            }
-            console.log('File submission', sub);
-
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-
-            const signer = await provider.getSigner();
-            const flow = getFlowContract(TESTNET_FLOW_ADDRESS, signer);
-
-            const tx = await flow.submit(sub).catch(e => {
-                setV(v => {
-                    return {...v, error: `submit: ${e.reason || e}`}
-                })
-            });
-            if (!tx) {
-                return
-            }
-            setV(v => {
-                return {...v, submitHash: tx.hash, loading: true}
-            });
-            await tx.wait();
-            console.log('Submit hash', tx.hash);
-        } else {
-            setV(v=>{return {...v, submitHash: ''}})
-        }
         setV(v=>{return {...v, loading: false,  info: 'uploading...'}})
 
-        const errUp = await nhProvider.uploadFile(blob);
+        const errUp = await nhProvider.uploadFile(blob).catch(e=>e);
         if (errUp) {
-            setV(v=>{return {...v, error: `Failed to upload: ${errUp}`}})
+            setV(v=>{return {...v, info: '', error: `Failed to upload: ${errUp.data || ''} ${errUp.message || errUp}`}})
             return
         }
         // alert('Upload finished');
         setV(v=>{return {...v, info: 'uploaded'}})
         getFileInfo(tree.rootHash()!, false)
-    }, [provider, file, nhProvider, fileInfo, getFileInfo])
+    }, [blob, nhProvider, getFileInfo])
 
     useEffect(()=>{
         if (!account) {
@@ -169,17 +180,21 @@ function App() {
                     alert('Please select a file');
                 }
             }}></input>
-            <button onClick={uploadFile}>Upload</button>
         </div>
-        {v.rootHash && <div>Root hash: {v.rootHash}</div>}
+        <div>Root hash: {v.rootHash}</div>
+        <button onClick={submitToLayer1}>Submit to layer 1</button>
         {v.submitHash && <div>Submit on layer1: {v.submitHash}</div>}
         <div>{v.loading && <Loading/>}</div>
-        {fileInfo && <div>uploadedSegNum: {fileInfo?.uploadedSegNum} finalized: {fileInfo.finalized.toString()}
+        <div>
+            File Info:
+            uploadedSegNum: {fileInfo?.uploadedSegNum ?? '-'} finalized: {fileInfo?.finalized?.toString() || '-'}
             <button style={{marginLeft: '8px'}} onClick={()=>getFileInfo(v.rootHash!, true)}>refresh</button>
-        </div>}
+        </div>
+        <button onClick={uploadFile}>Upload All segments</button>
         <div>{v.info}</div>
-        <div>{v.error}</div>
-
+        <div style={{color:'red'}}>{v.error}</div>
+        <div>Segments:</div>
+        {tree && <Segments file={blob!} tree={tree} provider={nhProvider}/>}
     </>
   )
 }

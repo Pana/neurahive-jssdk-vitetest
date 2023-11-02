@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "ethers": "^6.8.0",
-    "js-neurahive-sdk": "^0.2.1",
+    "js-neurahive-sdk": "^0.2.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

@@ -1,16 +1,12 @@
 lockfileVersion: '6.0'
 
-settings:
-  autoInstallPeers: true
-  excludeLinksFromLockfile: false
-
 dependencies:
   ethers:
     specifier: ^6.8.0
     version: 6.8.0
   js-neurahive-sdk:
-    specifier: ^0.2.1
-    version: 0.2.1
+    specifier: ^0.2.2
+    version: 0.2.2
   react:
     specifier: ^18.2.0
     version: 18.2.0
@@ -1494,8 +1490,8 @@ packages:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
     dev: true
 
-  /js-neurahive-sdk@0.2.1:
-    resolution: {integrity: sha512-EPHSY5NItf4Wj/2kACZRnIM0u3nUqS5wWnPBZGf3OXAXcHX6CqnJxfg7+ObuYjvI6bb8jgFeg3MqbmQHhh8imQ==}
+  /js-neurahive-sdk@0.2.2:
+    resolution: {integrity: sha512-c/6ULyEPk/MUatAMxwLatxpBJbgOJSNOvyanmlDTKox8jQUa61gl51f3bpD3b+nSw7L0B0jUWjoWokn5vYl9Uw==}
     dependencies:
       '@ethersproject/bytes': 5.7.0
       '@ethersproject/keccak256': 5.7.0
@@ -2072,3 +2068,7 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
     dev: true
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
