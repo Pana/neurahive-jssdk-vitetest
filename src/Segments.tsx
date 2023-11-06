@@ -23,6 +23,14 @@ export const Segments = ({file, tree, provider}: { file: NHBlob, tree: NHMerkleT
     }, [file, tree])
     const up = useCallback((seg: SegmentWithProof & SegReg) => {
         const props = {ok: false, error: ''}
+        function update() {
+            setList(list => {
+                return list.map(e => {
+                    return e.index === seg.index ? {...e, ...props} : e
+                })
+            })
+        }
+        update()
         provider.request({
             method: 'nrhv_uploadSegment',
             params: [seg],
@@ -32,11 +40,7 @@ export const Segments = ({file, tree, provider}: { file: NHBlob, tree: NHMerkleT
         }).catch(e => {
             props.error = `${e.data || ''} - ${e.message || e}`
         }).finally(() => {
-            setList(list => {
-                return list.map(e => {
-                    return e.index === seg.index ? {...e, ...props} : e
-                })
-            })
+            update()
         })
     }, [provider])
     return (

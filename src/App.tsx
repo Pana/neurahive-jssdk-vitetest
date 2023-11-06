@@ -6,14 +6,16 @@ import {Loading} from "./components/Loading.tsx";
 import {Segments} from "./Segments.tsx";
 
 function App() {
+    const scanUrl = 'https://evmtestnet.confluxscan.net'
     const [file, setFile] = useState<File|null>(null);
     const [account, setAccount] = useState<string|null>(null);
     const [tree, setTree] = useState<NHMerkleTree|null>(null);
     const [blob, setBlob] = useState<NHBlob|null>(null);
     const [v, setV] = useState({
         loading: false, approveHash: '', submitHash:'', allowance: 0, balance: 0, error: '',
-        info: '', rootHash: '',
+        info: '', rootHash: '', uploaded: 0,
     })
+    const [showLayer1info, setShowLayer1info] = useState(true);
     const [fileInfo, setFileInfo] = useState<Partial<FileInfo>|null>({})
     const provider = useMemo(()=>{
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -40,6 +42,52 @@ function App() {
         const account = accounts[0];
         setAccount(account);
     }
+    const updateBalance = useCallback(()=>{
+        if (!account) {
+            return
+        }
+        (async ()=>{
+            const signer = await provider.getSigner();
+            const usdt = new Contract(ESPACE_TESTNET_USDT, ERC20ABI, signer);
+            const allowance = await usdt.allowance(account, TESTNET_FLOW_ADDRESS);
+            const balance = await usdt.balanceOf(account);
+            setV(v=>{
+                return {...v, allowance, balance}
+            })
+        })();
+    }, [provider, account])
+    const getFileInfo = useCallback((rootHash:string, checkError:boolean)=>{
+        setFileInfo(null)
+        nhProvider.getFileInfo(rootHash).then(res=>{
+            setFileInfo(res || {})
+            if (res?.finalized && checkError) {
+                setV(v=>{return {...v, error: `Uploaded already.`}})
+            }
+        })
+    }, [nhProvider])
+    const uploadFile = useCallback(async () => {
+        if (!blob) {
+            return
+        }
+        setV(v=>{return {...v, info: '', error: ''}});
+        const [tree, err] = await blob.merkleTree();
+        if (tree === null || err) {
+            console.log('get tree error', err);
+            return;
+        }
+        setV(v=>{return {...v, loading: false,  info: 'uploading...', uploaded: 0}})
+
+        const errUp = await nhProvider.uploadFile(blob, undefined, (p)=>{
+            setV(v=>{return {...v, uploaded: p.uploaded}})
+        }).catch(e=>e);
+        if (errUp) {
+            setV(v=>{return {...v, info: '', error: `Failed to upload: ${errUp.data || ''} ${errUp.message || errUp}`}})
+            return
+        }
+        // alert('Upload finished');
+        setV(v=>{return {...v, info: 'uploaded', uploaded: 0}})
+        getFileInfo(tree.rootHash()!, false)
+    }, [blob, nhProvider, getFileInfo])
 
     const approve = useCallback(async () => {
         const signer = await provider.getSigner();
@@ -54,21 +102,14 @@ function App() {
             setV(v=>{
                 return {...v, loading: false}
             })
+            updateBalance()
         }).catch(e=>{
             setV(v=>{
                 return {...v, loading: false, error: `${e}`}
             })
         })
-    }, [provider])
-    const getFileInfo = useCallback((rootHash:string, checkError:boolean)=>{
-        setFileInfo(null)
-        nhProvider.getFileInfo(rootHash).then(res=>{
-            setFileInfo(res)
-            if (res?.finalized && checkError) {
-                setV(v=>{return {...v, error: `Uploaded already.`}})
-            }
-        })
-    }, [nhProvider])
+    }, [updateBalance, provider])
+
     useEffect(() => {
         if (!file) {
             return
@@ -83,7 +124,7 @@ function App() {
             }
             setTree(tree)
             setBlob(blob)
-            setV(v=>{return {...v, rootHash: tree.rootHash()!, info: '', error: ''}})
+            setV(v=>{return {...v, submitHash:'', rootHash: tree.rootHash()!, info: '', error: ''}})
             getFileInfo(tree.rootHash()!, true)
         })()
     }, [nhProvider, file, getFileInfo]);
@@ -122,78 +163,57 @@ function App() {
         setV(v=>{return {...v, loading: false}})
     }, [blob, provider])
 
-    const uploadFile = useCallback(async () => {
-        if (!blob) {
-            return
-        }
-        setV(v=>{return {...v, info: '', submitHash: '', error: ''}});
-        const [tree, err] = await blob.merkleTree();
-        if (tree === null || err) {
-            console.log('get tree error', err);
-            return;
-        }
-        setV(v=>{return {...v, loading: false,  info: 'uploading...'}})
-
-        const errUp = await nhProvider.uploadFile(blob).catch(e=>e);
-        if (errUp) {
-            setV(v=>{return {...v, info: '', error: `Failed to upload: ${errUp.data || ''} ${errUp.message || errUp}`}})
-            return
-        }
-        // alert('Upload finished');
-        setV(v=>{return {...v, info: 'uploaded'}})
-        getFileInfo(tree.rootHash()!, false)
-    }, [blob, nhProvider, getFileInfo])
-
-    useEffect(()=>{
-        if (!account) {
-            return
-        }
-        (async ()=>{
-            const signer = await provider.getSigner();
-            const usdt = new Contract(ESPACE_TESTNET_USDT, ERC20ABI, signer);
-            const allowance = await usdt.allowance(account, TESTNET_FLOW_ADDRESS);
-            const balance = await usdt.balanceOf(account);
-            setV(v=>{
-                return {...v, allowance, balance}
-            })
-        })();
-    }, [provider, account])
+    useEffect(() => {
+        updateBalance()
+    }, [updateBalance]);
   return (
     <>
-        <div><a href={'/storage'}>Explorer</a></div>
-        <div style={{marginBottom: '10px'}}>
-            <button onClick={connectWallet}>Connect wallet</button> {account}
+        <div>
+            <a href={'/storage'}>Explorer</a>
         </div>
         <div style={{marginBottom: '10px'}}>
-            <div>Token: {ESPACE_TESTNET_USDT}</div>
+            <button onClick={connectWallet}>Connect wallet</button> {account}
+            <button style={{marginLeft: '8px'}} onClick={()=>setShowLayer1info(!showLayer1info)}>{showLayer1info ? 'less' : 'more'}</button>
+        </div>
+        <div style={{marginBottom: '10px', display: showLayer1info ? '' : 'none'}}>
+            <div>Token: <a href={`${scanUrl}/token/${ESPACE_TESTNET_USDT}`} target={'_blank'}>{ESPACE_TESTNET_USDT}</a></div>
             <div>Flow: {TESTNET_FLOW_ADDRESS}</div>
             <div>Balance: {formatEther(v.balance)}</div>
-            <div>Allowance: {formatEther(v.allowance)}</div>
+            <div>Allowance: {formatEther(v.allowance)} <button onClick={updateBalance}>refresh</button></div>
             <button onClick={approve}>Approve USDT</button>
             <div>{v.approveHash}</div>
         </div>
-        <div>
-            <input type='file' onChange={(e) => {
+        <div style={{marginTop: '8px'}}>
+            <input id={'fileId'} type='file' onChange={(e) => {
                 if (e.target.files && e.target.files?.length > 0) {
                     setFile(e.target?.files[0]);
                 } else {
                     alert('Please select a file');
                 }
             }}></input>
+            <button onClick={()=>{
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                document.getElementById('fileId').value = null;
+                setFile(null);}}
+            >clear</button>
         </div>
         <div>Root hash: {v.rootHash}</div>
-        <button onClick={submitToLayer1}>Submit to layer 1</button>
-        {v.submitHash && <div>Submit on layer1: {v.submitHash}</div>}
-        <div>{v.loading && <Loading/>}</div>
         <div>
+        <button onClick={submitToLayer1}  style={{marginTop: '8px'}}>Submit to layer 1</button>
+        {v.submitHash && <> <a href={`${scanUrl}/tx/${v.submitHash}`} target={'_blank'}>{v.submitHash}</a></>}
+        </div>
+        <div>{v.loading && <Loading/>}</div>
+        <div  style={{marginTop: '8px'}}>
             File Info:
             uploadedSegNum: {fileInfo?.uploadedSegNum ?? '-'} finalized: {fileInfo?.finalized?.toString() || '-'}
-            <button style={{marginLeft: '8px'}} onClick={()=>getFileInfo(v.rootHash!, true)}>refresh</button>
+            {v.rootHash && <button style={{margin: '0 8px'}} onClick={()=>getFileInfo(v.rootHash!, true)}>refresh</button>}
+            {fileInfo === null ? 'loading':''}
         </div>
-        <button onClick={uploadFile}>Upload All segments</button>
+        <div><button onClick={uploadFile}>Upload All segments</button> {v.uploaded || ''}</div>
         <div>{v.info}</div>
         <div style={{color:'red'}}>{v.error}</div>
-        <div>Segments:</div>
+        <div style={{marginTop: '8px'}}>Segments:</div>
         {tree && <Segments file={blob!} tree={tree} provider={nhProvider}/>}
     </>
   )
