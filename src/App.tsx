@@ -82,6 +82,7 @@ function App() {
         }
         setV(v=>{return {...v, loading: false,  info: 'uploading...', uploaded: 0}})
 
+        //@ts-ignore
         const errUp = await nhProvider.uploadFile(blob, undefined, (p)=>{
             setV(v=>{return {...v, uploaded: p.uploaded}})
         }).catch(e=>e);
