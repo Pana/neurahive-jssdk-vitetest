@@ -1,12 +1,15 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {BrowserProvider, Contract, formatEther, parseEther} from 'ethers';
-import {FileInfo, getFlowContract, NHBlob, NHMerkleTree, NHProvider, TESTNET_FLOW_ADDRESS,} from 'js-neurahive-sdk';
+import {FileInfo, getFlowContract, NHBlob, NHMerkleTree,} from 'js-neurahive-sdk';
 import {ERC20ABI, ESPACE_TESTNET_USDT} from './ERC20Abi';
 import {Loading} from "./components/Loading.tsx";
 import {Segments} from "./Segments.tsx";
+import {ZgProvider} from "./zg/ZgProvider.ts";
 
 function App() {
-    const scanUrl = 'https://evmtestnet.confluxscan.net'
+    const flowAddr = '0xfCB3dAeD086792DD0a9b6A5C052e50F7CC05f6b2'
+    // const scanUrl = 'https://evmtestnet.confluxscan.net'
+    const scanUrl = 'https://testnet.bscscan.com'
     const [file, setFile] = useState<File|null>(null);
     const [account, setAccount] = useState<string|null>(null);
     const [tree, setTree] = useState<NHMerkleTree|null>(null);
@@ -23,8 +26,10 @@ function App() {
         return new BrowserProvider(window.ethereum);
     }, []);
     const nhProvider = useMemo(()=>{
-        const nhRpc = 'http://47.92.4.77:5678';
-        return new NHProvider(nhRpc)
+        // const nhRpc = 'http://47.92.4.77:5678';
+        // const nhRpc = 'http://54.193.124.127:5678';
+        const nhRpc = 'http://13.56.151.10:5678';
+        return new ZgProvider(nhRpc)
     }, [])
     const connectWallet = async () => {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -49,7 +54,7 @@ function App() {
         (async ()=>{
             const signer = await provider.getSigner();
             const usdt = new Contract(ESPACE_TESTNET_USDT, ERC20ABI, signer);
-            const allowance = await usdt.allowance(account, TESTNET_FLOW_ADDRESS);
+            const allowance = await usdt.allowance(account, flowAddr);
             const balance = await usdt.balanceOf(account);
             setV(v=>{
                 return {...v, allowance, balance}
@@ -92,7 +97,7 @@ function App() {
     const approve = useCallback(async () => {
         const signer = await provider.getSigner();
         const usdt = new Contract(ESPACE_TESTNET_USDT, ERC20ABI, signer);
-        usdt.approve(TESTNET_FLOW_ADDRESS, parseEther('10')).then(tx=>{
+        usdt.approve(flowAddr, parseEther('10')).then(tx=>{
             console.log(`tx is `, tx)
             setV(v=>{
                 return {...v, loading: true, approveHash: tx.hash || tx.transactionHash}
@@ -146,7 +151,7 @@ function App() {
         // @ts-ignore
 
         const signer = await provider.getSigner();
-        const flow = getFlowContract(TESTNET_FLOW_ADDRESS, signer);
+        const flow = getFlowContract(flowAddr, signer);
 
         const tx = await flow.submit(sub).catch(e => {
             setV(v => {
@@ -169,19 +174,19 @@ function App() {
   return (
     <>
         <div>
-            <a href={'/storage'}>Explorer</a>
+            <a href={'https://testnet.scan.0g.ai/'} target={"_blank"}>Explorer</a>
         </div>
         <div style={{marginBottom: '10px'}}>
             <button onClick={connectWallet}>Connect wallet</button> {account}
-            <button style={{marginLeft: '8px'}} onClick={()=>setShowLayer1info(!showLayer1info)}>{showLayer1info ? 'less' : 'more'}</button>
+            {/*<button style={{marginLeft: '8px'}} onClick={()=>setShowLayer1info(!showLayer1info)}>{showLayer1info ? 'less' : 'more'}</button>*/}
         </div>
         <div style={{marginBottom: '10px', display: showLayer1info ? '' : 'none'}}>
-            <div>Token: <a href={`${scanUrl}/token/${ESPACE_TESTNET_USDT}`} target={'_blank'}>{ESPACE_TESTNET_USDT}</a></div>
-            <div>Flow: {TESTNET_FLOW_ADDRESS}</div>
-            <div>Balance: {formatEther(v.balance)}</div>
-            <div>Allowance: {formatEther(v.allowance)} <button onClick={updateBalance}>refresh</button></div>
-            <button onClick={approve}>Approve USDT</button>
-            <div>{v.approveHash}</div>
+            {/*<div>Token: <a href={`${scanUrl}/token/${ESPACE_TESTNET_USDT}`} target={'_blank'}>{ESPACE_TESTNET_USDT}</a></div>*/}
+            <div>Flow: {flowAddr}</div>
+            {/*<div>Balance: {formatEther(v.balance)}</div>*/}
+            {/*<div>Allowance: {formatEther(v.allowance)} <button onClick={updateBalance}>refresh</button></div>*/}
+            {/*<button onClick={approve}>Approve USDT</button>*/}
+            {/*<div>{v.approveHash}</div>*/}
         </div>
         <div style={{marginTop: '8px'}}>
             <input id={'fileId'} type='file' onChange={(e) => {
