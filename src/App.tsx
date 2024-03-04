@@ -178,14 +178,14 @@ function App() {
         </div>
         <div style={{marginBottom: '10px'}}>
             <button onClick={connectWallet}>Connect wallet</button> {account}
-            {/*<button style={{marginLeft: '8px'}} onClick={()=>setShowLayer1info(!showLayer1info)}>{showLayer1info ? 'less' : 'more'}</button>*/}
+            <button style={{marginLeft: '8px', display: 'none'}} onClick={()=>setShowLayer1info(!showLayer1info)}>{showLayer1info ? 'less' : 'more'}</button>
         </div>
         <div style={{marginBottom: '10px', display: showLayer1info ? '' : 'none'}}>
             {/*<div>Token: <a href={`${scanUrl}/token/${ESPACE_TESTNET_USDT}`} target={'_blank'}>{ESPACE_TESTNET_USDT}</a></div>*/}
             <div>Flow: {flowAddr}</div>
-            {/*<div>Balance: {formatEther(v.balance)}</div>*/}
-            {/*<div>Allowance: {formatEther(v.allowance)} <button onClick={updateBalance}>refresh</button></div>*/}
-            {/*<button onClick={approve}>Approve USDT</button>*/}
+            <div style={{display: 'none'}} >Balance: {formatEther(v.balance)}</div>
+            <div style={{display: 'none'}} >Allowance: {formatEther(v.allowance)} <button onClick={updateBalance}>refresh</button></div>
+            <button style={{display: 'none'}} onClick={approve}>Approve USDT</button>
             {/*<div>{v.approveHash}</div>*/}
         </div>
         <div style={{marginTop: '8px'}}>
